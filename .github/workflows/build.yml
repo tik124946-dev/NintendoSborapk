@@ -24,6 +24,32 @@ jobs:
           mkdir -p out
           NRO=$(find build -name 'lovepotion.nro' | head -n1)
           test -n "$NRO"
+name: Build APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  engine:
+    name: Движок LÖVE Potion для Switch
+    runs-on: ubuntu-latest
+    container:
+      image: docker://devkitpro/devkita64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: lovebrew/lovepotion
+          ref: 906511d4e05b47015da5bf85ad554fe6542b1c81
+
+      - name: Сборка
+        run: catnip -T Switch -DLIBRARY_LOADER='linktime' -DUSE_CURL_BACKEND=ON
+
+      - name: Найти lovepotion.nro
+        run: |
+          mkdir -p out
+          NRO=$(find build -name 'lovepotion.nro' | head -n1)
+          test -n "$NRO"
           cp "$NRO" out/lovepotion.nro
           ls -l out
 
@@ -35,7 +61,7 @@ jobs:
   apk:
     name: APK
     needs: engine
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -56,6 +82,27 @@ jobs:
 
       - name: Проверить движок
         run: ls -l app/src/main/assets && test -s app/src/main/assets/lovepotion.nro
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Принять лицензии Android SDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: Сборка
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NroMaker-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+ test -s app/src/main/assets/lovepotion.nro
 
       - uses: actions/setup-java@v4
         with:
