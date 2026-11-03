@@ -39,22 +39,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Распаковать project.zip
+      - name: Найти и распаковать проект
         run: |
-          if [ -f project.zip ] && [ ! -f settings.gradle.kts ]; then
-            unzip -o project.zip
-            if [ -d nro-maker ]; then cp -r nro-maker/. . ; fi
+          echo "=== Файлы в репозитории ==="
+          find . -not -path './.git/*' -not -path './.github/*' | head -60
+          find . -name '*.zip' -not -path './.git/*' | while read -r z; do
+            echo "Распаковываю: $z"
+            unzip -o "$z" -d "$(dirname "$z")"
+          done
+          S=$(find . -name settings.gradle.kts -not -path './.git/*' | head -n1)
+          echo "settings.gradle.kts: $S"
+          if [ -z "$S" ]; then
+            echo "::error::Проект не найден. Загрузите project.zip в корень репозитория."
+            exit 1
           fi
-
-      - name: Удалить старые Kotlin-файлы
-        run: rm -f app/src/main/java/com/nromaker/*.kt
+          D=$(dirname "$S")
+          echo "PROJECT_DIR=$D" >> "$GITHUB_ENV"
+          rm -f "$D"/app/src/main/java/com/nromaker/*.kt
 
       - uses: actions/download-artifact@v4
         with:
           name: engine
-          path: app/src/main/assets
+          path: ${{ env.PROJECT_DIR }}/app/src/main/assets
 
       - name: Проверить движок
+        working-directory: ${{ env.PROJECT_DIR }}
         run: ls -l app/src/main/assets && test -s app/src/main/assets/lovepotion.nro
 
       - uses: actions/setup-java@v4
@@ -70,9 +79,10 @@ jobs:
           gradle-version: 8.9
 
       - name: Сборка
-        run: gradle assembleDebug --no-daemon
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: gradle assembleDebug --no-daemon --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
           name: NroMaker-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
